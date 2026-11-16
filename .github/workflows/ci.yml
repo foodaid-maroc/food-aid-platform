@@ -1,0 +1,99 @@
+# Tests rapides à chaque PR : seuls les dossiers modifiés sont testés (économise les minutes de CI).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      logic: ${{ steps.f.outputs.logic }}
+      api: ${{ steps.f.outputs.api }}
+      workers: ${{ steps.f.outputs.workers }}
+      portal: ${{ steps.f.outputs.portal }}
+      infra: ${{ steps.f.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            logic:   ['aws/logic/**', 'contracts/**']
+            api:     ['azure/api/**', 'contracts/**']
+            workers: ['azure/workers/**']
+            portal:  ['azure/portal/**']
+            infra:   ['infra/**', 'aws/logic/handler.py']
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks (recherche de secrets commités)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --no-git --source /repo --no-banner --redact
+
+  lambda:
+    needs: changes
+    if: needs.changes.outputs.logic == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: aws/logic } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pytest -q
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: azure/api } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pytest -q
+
+  workers:
+    needs: changes
+    if: needs.changes.outputs.workers == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t workers-test azure/workers
+
+  portal:
+    needs: changes
+    if: needs.changes.outputs.portal == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: azure/portal } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install
+      - run: npm run build
+
+  terraform:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stack: [aws, azure]
+    defaults: { run: { working-directory: "infra/${{ matrix.stack }}" } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: fmt (avertissement si le code n'est pas formaté)
+        run: terraform fmt -check -recursive || echo "::warning::Lancez 'terraform fmt -recursive' dans infra/${{ matrix.stack }}"
+      - run: terraform init -backend=false
+      - run: terraform validate

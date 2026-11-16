@@ -1,0 +1,7 @@
+# Configuration du scan de secrets (job « secrets-scan » de la CI).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Clés PUBLIQUES et documentées des émulateurs locaux (Cosmos DB, Azurite, Service Bus) : elles ne donnent accès à rien"
+paths = ['''local/docker-compose\.yml''']

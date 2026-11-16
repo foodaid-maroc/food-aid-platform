@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Message de la file Service Bus « batches »",
+  "description": "Publié par l'API après vérification et archivage d'un lot ; consommé par les workers.",
+  "type": "object",
+  "required": ["type", "donationId", "partnerId", "blobPath", "lot"],
+  "properties": {
+    "type": { "const": "lot.received" },
+    "donationId": { "type": "string" },
+    "partnerId": { "type": "string" },
+    "blobPath": { "type": "string", "description": "Chemin de la copie brute, ex. raw/2026-11-16/DON-0001.json" },
+    "lot": { "$ref": "lot.schema.json" }
+  }
+}

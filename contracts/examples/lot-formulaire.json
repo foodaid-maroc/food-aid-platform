@@ -1,0 +1,13 @@
+{
+  "donationId": "FORM-P2-0001",
+  "source": "partner_form",
+  "partnerId": "P2",
+  "donorId": null,
+  "amountMad": null,
+  "receivedAt": "2026-11-16T10:05:00Z",
+  "items": [
+    { "sku": "FARINE-25KG", "label": "Farine 25 kg", "quantity": 40, "unit": "unite", "expiryDate": "2027-03-01", "movement": "IN" },
+    { "sku": "HUILE-5L", "label": "Huile 5 L", "quantity": 60, "unit": "unite", "expiryDate": "2026-11-20", "movement": "IN" },
+    { "sku": "LAIT-1L", "label": "Lait 1 L", "quantity": 120, "unit": "unite", "expiryDate": "2026-11-18", "movement": "OUT" }
+  ]
+}

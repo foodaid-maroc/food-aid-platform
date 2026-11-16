@@ -1,0 +1,97 @@
+# Toute la plateforme en local, sans compte cloud (0 DH).
+#   cp local/.env.example local/.env
+#   docker compose -f local/docker-compose.yml up -d --build
+#   docker compose -f local/docker-compose.yml logs -f api workers lambda-runner
+#   docker compose -f local/docker-compose.yml down
+#
+# Les clés ci-dessous sont les clés PUBLIQUES et documentées des émulateurs : elles ne donnent accès à rien sur Azure.
+name: foodaid
+
+x-azure-local: &azure-local
+  COSMOS_ENDPOINT: http://cosmos:8081
+  COSMOS_KEY: C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==
+  COSMOS_DATABASE: foodaid
+  BLOB_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+  SERVICEBUS_CONNECTION_STRING: Endpoint=sb://servicebus;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+  SERVICEBUS_QUEUE: batches
+  HMAC_SECRET: dev-secret-change-me
+
+services:
+  # ---------------- AWS (émulé) ----------------
+  elasticmq:                      # SQS + DLQ
+    image: softwaremill/elasticmq-native:latest
+    ports: ["9324:9324", "9325:9325"]
+    volumes: ["./elasticmq.conf:/opt/elasticmq.conf:ro"]
+
+  dynamodb:                       # DynamoDB Local (officiel AWS)
+    image: amazon/dynamodb-local:latest
+    command: "-jar DynamoDBLocal.jar -inMemory -sharedDb"
+    ports: ["8001:8000"]
+
+  lambda-runner:                  # remplace le déclencheur SQS -> Lambda
+    build: ../aws/logic
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: eu-west-3
+      SQS_ENDPOINT: http://elasticmq:9324
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      AZURE_INGEST_URL: http://api:8080/ingest
+      HMAC_SECRET: dev-secret-change-me
+    depends_on: [elasticmq, dynamodb, api]
+    restart: unless-stopped
+
+  # ---------------- Azure (émulé) ----------------
+  azurite:                        # Blob Storage
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: azurite-blob --blobHost 0.0.0.0 --loose --skipApiVersionCheck
+    ports: ["10000:10000"]
+
+  cosmos:                         # Cosmos DB for NoSQL (émulateur Linux)
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+    environment:
+      PROTOCOL: http
+      ENABLE_EXPLORER: "true"
+    ports: ["8081:8081", "1234:1234"]
+
+  sqlserver:                      # requis par l'émulateur Service Bus
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?copier local/.env.example en local/.env}
+
+  servicebus:                     # Service Bus (émulateur officiel)
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    volumes: ["./servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro"]
+    ports: ["5672:5672"]
+    environment:
+      SQL_SERVER: sqlserver
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      ACCEPT_EULA: "Y"
+      SQL_WAIT_INTERVAL: "15"
+    depends_on: [sqlserver]
+
+  data-init:                      # Étudiant 4 : crée base, conteneurs Cosmos et conteneurs Blob
+    build: ../azure/data
+    environment: *azure-local
+    depends_on: [cosmos, azurite]
+    restart: "no"
+
+  api:                            # Étudiant 3 : Container Apps « api »
+    build: ../azure/api
+    ports: ["8080:8080"]
+    environment:
+      <<: *azure-local
+      AUTH_MODE: dev
+    depends_on:
+      data-init: { condition: service_completed_successfully }
+      servicebus: { condition: service_started }
+    restart: unless-stopped
+
+  workers:                        # Étudiant 3 : Container Apps « workers »
+    build: ../azure/workers
+    environment: *azure-local
+    depends_on:
+      data-init: { condition: service_completed_successfully }
+      servicebus: { condition: service_started }
+    restart: unless-stopped

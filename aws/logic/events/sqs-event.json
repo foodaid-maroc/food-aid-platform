@@ -1,0 +1,9 @@
+{
+  "Records": [
+    {
+      "messageId": "11111111-1111-4111-8111-111111111111",
+      "eventSource": "aws:sqs",
+      "body": "{\"donationId\":\"FORM-P2-0001\",\"source\":\"partner_form\",\"partnerId\":\"p2\",\"receivedAt\":\"2026-11-16T10:05:00Z\",\"items\":[{\"sku\":\"farine-25kg\",\"label\":\"Farine 25 kg\",\"quantity\":40,\"unit\":\"unite\",\"expiryDate\":\"2027-03-01\"}]}"
+    }
+  ]
+}

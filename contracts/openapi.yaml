@@ -1,0 +1,43 @@
+openapi: 3.0.3
+info:
+  title: Food Aid API (Azure Container Apps · app api)
+  version: 0.1.0
+  description: >
+    /ingest est appelée par la Lambda AWS (signature HMAC).
+    /query est appelée par le portail (JWT Entra ID + rôle).
+paths:
+  /health:
+    get:
+      summary: Sonde de santé (Container Apps)
+      responses:
+        "200": { description: OK }
+  /ingest:
+    post:
+      summary: Reçoit un lot signé depuis AWS
+      parameters:
+        - { in: header, name: X-Timestamp, required: true, schema: { type: string } }
+        - { in: header, name: X-Nonce, required: true, schema: { type: string } }
+        - { in: header, name: X-Signature, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "./lot.schema.json" }
+      responses:
+        "202": { description: Lot accepté, archivé et publié sur Service Bus }
+        "400": { description: Lot invalide }
+        "401": { description: Signature invalide, expirée ou rejouée }
+  /query:
+    get:
+      summary: Données filtrées selon le rôle de l'utilisateur
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: partnerId, required: false, schema: { type: string }, description: "Ignoré pour le rôle Partner (imposé par le jeton)" }
+      responses:
+        "200":
+          description: Liste de mouvements de stock visibles par l'utilisateur
+        "401": { description: Jeton absent ou invalide }
+        "403": { description: Rôle non autorisé }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

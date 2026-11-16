@@ -1,0 +1,16 @@
+variable "rg_name" { type = string }
+variable "location" { type = string }
+variable "suffix" { type = string }
+variable "tags" { type = map(string) }
+variable "identity_id" { type = string }
+variable "identity_client_id" { type = string }
+variable "apps_principal_id" { type = string }
+variable "log_analytics_workspace_id" { type = string }
+variable "hmac_secret_id" { type = string }
+variable "cosmos_endpoint" { type = string }
+variable "blob_account_url" { type = string }
+variable "api_image" { type = string }
+variable "workers_image" { type = string }
+variable "entra_tenant_id" { type = string }
+variable "entra_api_audience" { type = string }
+variable "allowed_origin" { type = string }

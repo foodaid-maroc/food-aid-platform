@@ -1,0 +1,62 @@
+# Déploie l'infrastructure pour une session d'intégration ou la démo.
+# Lancement : Actions → terraform-apply → Run workflow. Une validation humaine est demandée (environnement « dev »).
+name: terraform-apply
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-cloud        # une seule exécution apply/destroy à la fois
+  cancel-in-progress: false
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  BACKEND: >-
+    -backend-config=resource_group_name=${{ vars.TF_STATE_RG }}
+    -backend-config=storage_account_name=${{ vars.TF_STATE_ACCOUNT }}
+    -backend-config=container_name=${{ vars.TF_STATE_CONTAINER }}
+
+jobs:
+  azure:
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      api_url: ${{ steps.out.outputs.api_url }}
+    defaults: { run: { working-directory: infra/azure } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_wrapper: false }
+      - run: terraform init $BACKEND -backend-config=key=azure.tfstate
+      - name: apply
+        run: >
+          terraform apply -auto-approve -lock-timeout=5m
+          -var="api_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/foodaid-api:latest"
+          -var="workers_image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/foodaid-workers:latest"
+          -var="entra_tenant_id=${{ vars.ENTRA_TENANT_ID }}"
+          -var="entra_api_audience=${{ vars.ENTRA_API_AUDIENCE }}"
+      - id: out
+        run: echo "api_url=$(terraform output -raw api_url)" >> "$GITHUB_OUTPUT"
+
+  aws:
+    needs: azure
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults: { run: { working-directory: infra/aws } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      - run: terraform init $BACKEND -backend-config=key=aws.tfstate
+      - run: terraform apply -auto-approve -lock-timeout=5m -var="azure_ingest_url=${{ needs.azure.outputs.api_url }}/ingest"

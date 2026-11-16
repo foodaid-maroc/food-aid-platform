@@ -1,0 +1,56 @@
+# Détruit TOUTE l'infrastructure (sauf le stockage du state) pour arrêter la facturation.
+# À lancer à la fin de chaque session d'intégration. Taper DETRUIRE pour confirmer.
+name: terraform-destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Tapez DETRUIRE pour confirmer"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-cloud
+  cancel-in-progress: false
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  BACKEND: >-
+    -backend-config=resource_group_name=${{ vars.TF_STATE_RG }}
+    -backend-config=storage_account_name=${{ vars.TF_STATE_ACCOUNT }}
+    -backend-config=container_name=${{ vars.TF_STATE_CONTAINER }}
+
+jobs:
+  aws:
+    if: inputs.confirmation == 'DETRUIRE'
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults: { run: { working-directory: infra/aws } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      - run: terraform init $BACKEND -backend-config=key=aws.tfstate
+      - run: terraform destroy -auto-approve -lock-timeout=5m
+
+  azure:
+    needs: aws
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults: { run: { working-directory: infra/azure } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init $BACKEND -backend-config=key=azure.tfstate
+      - run: terraform destroy -auto-approve -lock-timeout=5m

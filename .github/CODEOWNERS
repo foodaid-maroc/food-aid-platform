@@ -1,0 +1,38 @@
+# Propriétaires de chaque dossier : ils sont ajoutés automatiquement comme relecteurs des PR.
+# ➜ Remplacer chaque @PSEUDO_ETUDIANT_N par le pseudo GitHub du membre (voir docs/mise-en-place-github.md)
+#   ou par une équipe de l'organisation, ex. @<organisation>/etudiant-1
+
+# Par défaut : toute l'équipe
+*                                   @PSEUDO_ETUDIANT_1 @PSEUDO_ETUDIANT_2 @PSEUDO_ETUDIANT_3 @PSEUDO_ETUDIANT_4 @PSEUDO_ETUDIANT_5 @PSEUDO_ETUDIANT_6
+
+# Contrats : toutes les parties concernées
+/contracts/                         @PSEUDO_ETUDIANT_1 @PSEUDO_ETUDIANT_2 @PSEUDO_ETUDIANT_3 @PSEUDO_ETUDIANT_4 @PSEUDO_ETUDIANT_5 @PSEUDO_ETUDIANT_6
+
+# Étudiant 1 · Ingestion
+/aws/ingest/                        @PSEUDO_ETUDIANT_1
+/infra/aws/modules/ingest/          @PSEUDO_ETUDIANT_1
+
+# Étudiant 2 · Validation des lots
+/aws/logic/                         @PSEUDO_ETUDIANT_2
+/infra/aws/modules/logic/           @PSEUDO_ETUDIANT_2
+
+# Étudiant 3 · Calcul
+/azure/api/                         @PSEUDO_ETUDIANT_3
+/azure/workers/                     @PSEUDO_ETUDIANT_3
+/infra/azure/modules/compute/       @PSEUDO_ETUDIANT_3
+
+# Étudiant 4 · Données
+/azure/data/                        @PSEUDO_ETUDIANT_4
+/infra/azure/modules/data/          @PSEUDO_ETUDIANT_4
+
+# Étudiant 5 · Accès
+/azure/portal/                      @PSEUDO_ETUDIANT_5
+/infra/azure/modules/access/        @PSEUDO_ETUDIANT_5
+
+# Étudiant 6 · Sécurité
+/azure/security/                    @PSEUDO_ETUDIANT_6
+/infra/azure/modules/security/      @PSEUDO_ETUDIANT_6
+
+# DevOps partagé : au moins deux relecteurs
+/.github/                           @PSEUDO_ETUDIANT_3 @PSEUDO_ETUDIANT_6
+/infra/*.tf                         @PSEUDO_ETUDIANT_3 @PSEUDO_ETUDIANT_6

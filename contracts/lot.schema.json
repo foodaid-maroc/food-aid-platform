@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foodaid.example/contracts/lot.schema.json",
+  "title": "Lot de don (format normalisé)",
+  "description": "Format d'un don après normalisation par la Lambda. C'est ce qui est signé (HMAC) et envoyé à POST /ingest.",
+  "type": "object",
+  "required": ["donationId", "source", "partnerId", "receivedAt", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "donationId": {
+      "type": "string",
+      "description": "Clé d'idempotence unique du don (ex. référence de transaction CMI ou UUID du formulaire). Un même donationId n'est compté qu'une fois.",
+      "minLength": 6, "maxLength": 128
+    },
+    "source": { "type": "string", "enum": ["cmi_webhook", "partner_form"] },
+    "partnerId": {
+      "type": "string",
+      "description": "Partenaire (association / entrepôt) concerné. Sert de clé de partition dans Cosmos DB.",
+      "pattern": "^P[0-9]{1,6}$"
+    },
+    "donorId": { "type": ["string", "null"], "description": "Identifiant du donateur si connu (paiement carte)." },
+    "amountMad": { "type": ["number", "null"], "minimum": 0, "description": "Montant en dirhams pour un don financier." },
+    "receivedAt": { "type": "string", "format": "date-time" },
+    "items": {
+      "type": "array",
+      "description": "Denrées concernées (vide pour un don purement financier).",
+      "items": {
+        "type": "object",
+        "required": ["sku", "label", "quantity", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "sku": { "type": "string", "description": "Code de la denrée, ex. FARINE-25KG" },
+          "label": { "type": "string" },
+          "quantity": { "type": "number", "exclusiveMinimum": 0 },
+          "unit": { "type": "string", "enum": ["kg", "l", "unite", "carton"] },
+          "expiryDate": { "type": ["string", "null"], "format": "date" },
+          "movement": { "type": "string", "enum": ["IN", "OUT"], "default": "IN", "description": "IN = reçu, OUT = distribué" }
+        }
+      }
+    }
+  }
+}

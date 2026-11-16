@@ -1,0 +1,57 @@
+# Sur chaque PR qui touche infra/ : terraform plan (ne crée RIEN, ne coûte rien).
+# Ne s'exécute que si l'accès cloud est configuré (variables AZURE_CLIENT_ID / AWS_ROLE_ARN).
+name: terraform-plan
+
+on:
+  pull_request:
+    paths: ['infra/**', 'aws/logic/handler.py']
+
+permissions:
+  id-token: write     # OIDC : connexion sans clé stockée
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  plan:
+    if: vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [azure, aws]
+    defaults: { run: { working-directory: "infra/${{ matrix.stack }}" } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Connexion AWS (OIDC)
+        if: matrix.stack == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      - name: init (state distant verrouillé)
+        run: >
+          terraform init
+          -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}"
+          -backend-config="storage_account_name=${{ vars.TF_STATE_ACCOUNT }}"
+          -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}"
+          -backend-config="key=${{ matrix.stack }}.tfstate"
+      - name: plan
+        run: terraform plan -no-color -lock-timeout=5m | tee plan.txt
+      - name: résumé dans la PR
+        if: always()
+        run: |
+          echo "### terraform plan · ${{ matrix.stack }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "Plan:|No changes|Error" plan.txt >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

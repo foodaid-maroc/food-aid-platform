@@ -1,0 +1,21 @@
+// 1. Lots refusés par l'API (signature, expiration, rejeu)
+ContainerAppConsoleLogs_CL
+| where Log_s has "ingest_rejected"
+| extend e = parse_json(Log_s)
+| summarize count() by reason = tostring(e.reason), bin(TimeGenerated, 5m)
+
+// 2. Requêtes du portail par rôle
+ContainerAppConsoleLogs_CL
+| where Log_s has "\"event\": \"query\""
+| extend e = parse_json(Log_s)
+| summarize requetes = count() by roles = tostring(e.roles)
+
+// 3. Accès refusés à Key Vault
+AzureDiagnostics
+| where ResourceProvider == "MICROSOFT.KEYVAULT" and ResultSignature == "Forbidden"
+| project TimeGenerated, OperationName, CallerIPAddress, identity_claim_oid_g
+
+// 4. Erreurs des workers
+ContainerAppConsoleLogs_CL
+| where ContainerAppName_s has "workers" and Log_s has "lot_failed"
+| project TimeGenerated, Log_s
